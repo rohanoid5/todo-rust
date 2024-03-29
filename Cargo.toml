@@ -1,0 +1,15 @@
+[package]
+name = "todo-rust"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+console = "0.15.8"
+dialoguer = "0.11.0"
+tokio = { version = "1.37.0", features = ["full"] }
+thiserror = "1.0"
+refinery = { version = "0.8.12", features = ["tokio-postgres"]}
+tokio-postgres = "0.7.0"
