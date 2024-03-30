@@ -13,3 +13,5 @@ tokio = { version = "1.37.0", features = ["full"] }
 thiserror = "1.0"
 refinery = { version = "0.8.12", features = ["tokio-postgres"]}
 tokio-postgres = "0.7.0"
+ratatui = "0.26.1"
+crossterm = "0.27.0"

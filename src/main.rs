@@ -1,7 +1,19 @@
 use clap::{Args, Parser, Subcommand};
 use preclude::Error;
 // use dialoguer::Editor;
+use console::style;
+use crossterm::{
+    event::{self, KeyCode, KeyEventKind},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    ExecutableCommand,
+};
+use ratatui::{
+    prelude::{CrosstermBackend, Stylize, Terminal},
+    widgets::Paragraph,
+};
 use std::future::IntoFuture;
+use std::io::{stdout, Result as IOResult};
+use tokio_postgres::Row;
 
 mod db;
 mod task;
@@ -29,12 +41,60 @@ struct Cli {
 enum Commands {
     Add(AddArgs),
     Search(AddArgs),
+    Done(AddArgs),
     ShowAll,
 }
 
 #[derive(Args)]
 struct AddArgs {
     name: Option<Vec<String>>,
+}
+
+fn print_rows(tasks: Vec<Row>) {
+    for task in tasks {
+        let current_task = Task::new(task.get(0), task.get(1), task.get(3));
+
+        if current_task.checked == true {
+            println!(
+                "{}. {}",
+                current_task._id,
+                style(current_task.name).green().strikethrough()
+            );
+        } else {
+            println!("{}. {}", current_task._id, style(current_task.name).blue());
+        }
+    }
+}
+
+fn ui() -> IOResult<()> {
+    stdout().execute(EnterAlternateScreen)?;
+    enable_raw_mode()?;
+    let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
+    terminal.clear()?;
+
+    loop {
+        terminal.draw(|frame| {
+            let area = frame.size();
+            frame.render_widget(
+                Paragraph::new("Hello Ratatui! (press 'q' to quit)")
+                    .white()
+                    .on_blue(),
+                area,
+            );
+        })?;
+
+        if event::poll(std::time::Duration::from_millis(16))? {
+            if let event::Event::Key(key) = event::read()? {
+                if key.kind == KeyEventKind::Press && key.code == KeyCode::Char('q') {
+                    break;
+                }
+            }
+        }
+    }
+
+    stdout().execute(LeaveAlternateScreen)?;
+    disable_raw_mode()?;
+    Ok(())
 }
 
 #[tokio::main]
@@ -60,27 +120,20 @@ async fn main() -> Result<(), Error> {
             let task_name = arg.name.clone().unwrap_or(Vec::new());
             let tasks = db.get_task_by_name(task_name).await?;
 
-            for task in tasks {
-                let current_task = Task::new(task.get(0), task.get(1), task.get(3));
+            print_rows(tasks);
+        }
+        Some(Commands::Done(arg)) => {
+            let task_name = arg.name.clone().unwrap_or(Vec::new());
 
-                println!(
-                    "{}, {}, {}",
-                    current_task._id, current_task.name, current_task.checked
-                );
-            }
+            db.toggle_task(true, task_name).await?;
         }
         Some(Commands::ShowAll) => {
             let tasks = db.get_all_tasks().await?;
-            for task in tasks {
-                let current_task = Task::new(task.get(0), task.get(1), task.get(3));
-
-                println!(
-                    "{}, {}, {}",
-                    current_task._id, current_task.name, current_task.checked
-                );
-            }
+            print_rows(tasks);
         }
-        None => println!("NOTHING!!!"),
+        None => {
+            ui();
+        }
     }
 
     Ok(())

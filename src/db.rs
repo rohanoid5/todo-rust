@@ -45,7 +45,10 @@ impl Database {
     }
 
     pub async fn get_all_tasks(&self) -> Result<Vec<Row>, Error> {
-        let rows = self.client.query("SELECT * FROM todo", &[]).await?;
+        let rows = self
+            .client
+            .query("SELECT * FROM todo ORDER BY id", &[])
+            .await?;
 
         Ok(rows)
     }
@@ -57,5 +60,16 @@ impl Database {
             .await?;
 
         Ok(rows)
+    }
+
+    pub async fn toggle_task(&self, checked: bool, name: Vec<String>) -> Result<(), Error> {
+        self.client
+            .execute(
+                "UPDATE todo SET checked = $1 WHERE name = $2",
+                &[&checked, &name.join(" ")],
+            )
+            .await?;
+
+        Ok(())
     }
 }
