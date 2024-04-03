@@ -1,26 +1,22 @@
+use app::App;
 use clap::{Args, Parser, Subcommand};
 use preclude::Error;
 // use dialoguer::Editor;
 use console::style;
-use crossterm::{
-    event::{self, KeyCode, KeyEventKind},
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-    ExecutableCommand,
-};
-use ratatui::{
-    prelude::{CrosstermBackend, Stylize, Terminal},
-    widgets::Paragraph,
-};
 use std::future::IntoFuture;
-use std::io::{stdout, Result as IOResult};
+use std::io::Result as IOResult;
 use tokio_postgres::Row;
 
+mod app;
 mod db;
 mod task;
+mod ui;
 
 mod preclude {
+    pub use crate::app::*;
     pub use crate::db::*;
     pub use crate::task::*;
+    pub use crate::ui::*;
     pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 }
 
@@ -66,34 +62,10 @@ fn print_rows(tasks: Vec<Row>) {
     }
 }
 
-fn ui() -> IOResult<()> {
-    stdout().execute(EnterAlternateScreen)?;
-    enable_raw_mode()?;
-    let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
-    terminal.clear()?;
-
-    loop {
-        terminal.draw(|frame| {
-            let area = frame.size();
-            frame.render_widget(
-                Paragraph::new("Hello Ratatui! (press 'q' to quit)")
-                    .white()
-                    .on_blue(),
-                area,
-            );
-        })?;
-
-        if event::poll(std::time::Duration::from_millis(16))? {
-            if let event::Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press && key.code == KeyCode::Char('q') {
-                    break;
-                }
-            }
-        }
-    }
-
-    stdout().execute(LeaveAlternateScreen)?;
-    disable_raw_mode()?;
+async fn ui(tasks: Vec<Row>, db: Database) -> Result<(), Error> {
+    let mut terminal = ui::init()?;
+    let _ = App::new(tasks, db).run(&mut terminal).await?;
+    ui::restore()?;
     Ok(())
 }
 
@@ -132,7 +104,8 @@ async fn main() -> Result<(), Error> {
             print_rows(tasks);
         }
         None => {
-            ui();
+            let tasks = db.get_all_tasks().await?;
+            let _ = ui(tasks, db).await?;
         }
     }
 
