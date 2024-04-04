@@ -4,7 +4,6 @@ use preclude::Error;
 // use dialoguer::Editor;
 use console::style;
 use std::future::IntoFuture;
-use std::io::Result as IOResult;
 use tokio_postgres::Row;
 
 mod app;
@@ -97,7 +96,7 @@ async fn main() -> Result<(), Error> {
         Some(Commands::Done(arg)) => {
             let task_name = arg.name.clone().unwrap_or(Vec::new());
 
-            db.toggle_task(true, task_name).await?;
+            db.toggle_task(task_name).await?;
         }
         Some(Commands::ShowAll) => {
             let tasks = db.get_all_tasks().await?;

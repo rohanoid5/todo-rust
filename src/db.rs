@@ -62,11 +62,11 @@ impl Database {
         Ok(rows)
     }
 
-    pub async fn toggle_task(&self, checked: bool, name: Vec<String>) -> Result<(), Error> {
+    pub async fn toggle_task(&self, name: Vec<String>) -> Result<(), Error> {
         self.client
             .execute(
-                "UPDATE todo SET checked = $1 WHERE name = $2",
-                &[&checked, &name.join(" ")],
+                "UPDATE todo SET checked = NOT checked WHERE name = $1",
+                &[&name.join(" ")],
             )
             .await?;
 

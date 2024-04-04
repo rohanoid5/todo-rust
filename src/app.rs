@@ -1,15 +1,14 @@
 use crate::{preclude::*, ui};
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{
     prelude::*,
     symbols::border,
     widgets::{block::*, *},
 };
-use std::io;
 use tokio_postgres::Row;
 
 pub struct App {
-    pub selected_index: i32,
+    pub selected_index: usize,
     pub tasks: Vec<Row>,
     pub exit: bool,
     pub db: Database,
@@ -39,7 +38,7 @@ impl App {
         //     .direction(Direction::Horizontal)
         //     .constraints([Constraint::Length(20), Constraint::Min(0)])
         //     .split(frame.size());
-        let mut state = ListState::default().with_selected(Some(self.selected_index as usize));
+        let mut state = ListState::default().with_selected(Some(self.selected_index));
 
         frame.render_stateful_widget(self, frame.size(), &mut state);
     }
@@ -56,8 +55,10 @@ impl App {
                     KeyCode::Up => self.move_up(),
                     KeyCode::Down => self.move_down(),
                     KeyCode::Enter => {
-                        let task = vec![String::from("dummy task")];
-                        self.db.add_task(task).await?;
+                        let current_task = &self.tasks[self.selected_index];
+                        let name = current_task.get::<&str, String>("name");
+                        self.db.toggle_task(vec![name]).await?;
+
                         let tasks = self.db.get_all_tasks().await?;
                         self.tasks = tasks;
                     }
@@ -69,19 +70,6 @@ impl App {
         Ok(())
     }
 
-    // async fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<(), Error> {
-    //     match key_event.code {
-    //         KeyCode::Char('q') => self.exit(),
-    //         KeyCode::Up => self.move_up(),
-    //         KeyCode::Down => self.move_down(),
-    //         KeyCode::Enter => {
-    //             let task = vec![String::from("dummy task")];
-    //             self.db.add_task(task).await?;
-    //         }
-    //         _ => {}
-    //     }
-    // }
-
     fn exit(&mut self) {
         self.exit = true;
     }
@@ -90,12 +78,12 @@ impl App {
         if self.selected_index > 0 {
             self.selected_index -= 1;
         } else {
-            self.selected_index = (self.tasks.len() - 1).try_into().unwrap();
+            self.selected_index = self.tasks.len() - 1;
         }
     }
 
     fn move_down(&mut self) {
-        if self.selected_index < (self.tasks.len() - 1).try_into().unwrap() {
+        if self.selected_index < (self.tasks.len() - 1) {
             self.selected_index += 1;
         } else {
             self.selected_index = 0;
@@ -131,7 +119,12 @@ impl StatefulWidget for &App {
             .iter()
             .map(|task| {
                 let current_task = Task::new(task.get(0), task.get(1), task.get(3));
-                Line::from(vec![current_task.name.into()])
+
+                if current_task.checked {
+                    Line::from(vec![current_task.name.crossed_out()])
+                } else {
+                    Line::from(vec![current_task.name.into()])
+                }
             })
             .collect();
 
